@@ -6,4 +6,170 @@ jupyter:
       format_name: rmarkdown
       format_version: '1.1'
       jupytext_version: 1.1.3
+  kernelspec:
+    display_name: Python 3
+    language: python
+    name: python3
 ---
+
+# Analyzing the Fandango reviews webpage
+
+In 2015, Hickey released an article explaining how Fandango reviews were coneniently rounded up, ignoring the real reviews given by the public. 
+
+This project analyzes if Fandango has corrected the 'bug' that they claimed caused the rounding.
+
+```{python}
+# !ls
+```
+
+```{python}
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+```
+
+```{python}
+hickey_fandango = pd.read_csv('fandango_score_comparison.csv')
+fixed_fandango = pd.read_csv('movie_ratings_16_17.csv')
+```
+
+```{python}
+pd.set_option('display.max_columns', 500)
+```
+
+```{python}
+hickey_fandango.head()
+```
+
+```{python}
+fixed_fandango.head()
+```
+
+The two datasets have different attributes. The Hickey dataset contains reviews from different movie rating sites. The fixed_fandango contain the reviews from metascore, imdb and the fandango site, and also the normalized values (i.e. in a scale of stars).
+
+```{python}
+hickey_only_fan = hickey_fandango[['FILM', 'Fandango_Stars', 'Fandango_Ratingvalue', 'Fandango_votes', 'Fandango_Difference']]
+fixed_only_fan = fixed_fandango[['movie', 'year', 'fandango']]
+```
+
+```{python}
+fixed_only_fan['year'].value_counts()
+```
+
+The 'fixed_fandango' dataset only contains movies from 2016 and 2017, so it's not a representative set of the Fandango DB.
+The 'hickey_fandango' only contains movies with tickets sold during 2015, so it's not representative either.
+
+
+Due to the fact that the datasets are only for recent and popular moves, the scope of the notebook changes only to analyzing rating differences betwwen 2015 and 2016. 
+
+
+In order to make both datasets as similar as they can, movies with more than 30 reviews will be consideerate 'popular'.
+
+
+The result below shows that there is no movie that has less than 30 ratings. 
+
+```{python}
+hickey_fandango[hickey_fandango['Fandango_votes'] < 30 ].shape
+```
+
+The 'fixed' data set don't have an attribute specifying the number of reviews. A solution is take a random sample of at least the 10% and manually checking the percentage of movies from the sample that has more than 30 reviews. 
+
+```{python}
+fixed_only_fan.sample(10)
+```
+
+The fixed data set contains a 'Year' attribute to segregate only 2016 movies, but the hickey's dataset don't, so the column has to be created
+
+```{python}
+ hickey_only_fan['Year'] = hickey_only_fan['FILM'].str[-5:-1]
+```
+
+The hickey's dataset have 129 movies from 2015
+
+```{python}
+hickey_only_fan['Year'].value_counts()
+```
+
+To clean the dataset, only 2015 and 2016 movie reviews are segregated
+
+```{python}
+hickey_2015_fandang = hickey_only_fan[hickey_only_fan['Year'] == '2015']
+fixed_2016_fandang = fixed_only_fan[fixed_only_fan['year'] == 2016]
+```
+
+```{python}
+hickey_2015_fandang['Fandango_Stars'].plot.kde()
+fixed_2016_fandang['fandango'].plot.kde()
+plt.title('Comparing 2015 reviews and 2016 reviews')
+plt.axvline(2.5)
+plt.xlabel('Stars')
+plt.xlim(0, 5)
+plt.xticks(np.arange(0, 5.1, .5))
+plt.grid()
+plt.legend()
+```
+
+Both distributions are left skwed, one seems to have an average at 4.0 and the other at 4.5. The 2016 seems to follow the normalized distribution better. It also seems that, on average, the 2016 have a lower ratings compared to movies on the 2017. 
+
+
+
+```{python}
+hickey_2015_fandang['Fandango_Stars'].describe()
+```
+
+```{python}
+fixed_2016_fandang['fandango'].describe()
+```
+
+ In 2016, the quartile rank for the 75th quartile is 4.25. In 2015, the quartile rank for the 75th quartile is 4.5. This means that in 2016, movies are better distributed in the upper quartiles, with 25% of the data between 4.25 and 5, in contrast to 2015, that has the upper 25 % of the data between 4.5 and 5.
+
+```{python}
+(hickey_2015_fandang['Fandango_Stars'].value_counts(normalize = True) * 100).sort_index()
+```
+
+```{python}
+(fixed_2016_fandang['fandango'].value_counts(normalize = True) * 100).sort_index()
+```
+
+In 2016 there are movies with 2.5 stars and there is an important increase in 3.5 and 4.0 ratings with a decrease of ratings in 4.5 and most importantly in 5.0 ratings.
+
+```{python}
+print('2015')
+print('Mean', hickey_2015_fandang['Fandango_Stars'].mean())
+print('Mode', hickey_2015_fandang['Fandango_Stars'].mode())
+print('Median', hickey_2015_fandang['Fandango_Stars'].median())
+```
+
+```{python}
+print('2016')
+print('Mean', fixed_2016_fandang['fandango'].mean())
+print('Mode', fixed_2016_fandang['fandango'].mode())
+print('Median', fixed_2016_fandang['fandango'].median())
+```
+
+The mode and mean have moved to the left. The median is the same for both distributions.
+
+```{python}
+central_tendency = pd.DataFrame()
+central_tendency['2015'] = [hickey_2015_fandang['Fandango_Stars'].mean()
+,hickey_2015_fandang['Fandango_Stars'].mode()[0]
+,hickey_2015_fandang['Fandango_Stars'].median()]
+
+central_tendency['2016'] = [fixed_2016_fandang['fandango'].mean(),fixed_2016_fandang['fandango'].mode()[0],fixed_2016_fandang['fandango'].median()]
+
+central_tendency.index = ['mean', 'mode', 'median']
+```
+
+```{python}
+central_tendency
+```
+
+```{python}
+central_tendency['2015'].plot.bar(label = '2015')
+central_tendency['2016'].plot.bar(color = 'red', align = 'edge', label = '2016', rot = 0, figsize = (8,5))
+plt.legend()
+plt.yticks(np.arange(0, 5.1, .5))
+plt.ylabel('Stars')
+plt.title('Comparing 2015 and 2016 central tendency measures')
+```
